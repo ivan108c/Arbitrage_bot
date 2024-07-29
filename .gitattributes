@@ -1,2 +1,57 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+import ccxt
+import time
+import csv
+
+class Arbit:
+    def __init__(self, symbol, threshold):
+        self.symbol = symbol
+        self.threshold = threshold
+        self.binance = ccxt.binance()
+        self.coinbase = ccxt.coinbase()
+        self.log_file = 'trading_log.csv'
+        self.initialize_log_file()
+
+    def initialize_log_file(self):
+        with open(self.log_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Date', 'Buy Price', 'Sell Price'])
+
+    def log_transaction(self, buy_price, sell_price):
+        with open(self.log_file, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), buy_price, sell_price])
+
+    def fetch_data(self, exchange, symbol):
+        ticker = exchange.fetch_ticker(symbol)
+        last_price = ticker['last']
+        return last_price
+
+    def arbit(self, symbol, threshold):
+        binance_data = self.fetch_data(self.binance, symbol)
+        coinbase_data = self.fetch_data(self.coinbase, symbol)
+
+        if binance_data > coinbase_data + threshold:
+            return coinbase_data, 'Buy Coinbase', binance_data, 'Sell Binance'
+        elif coinbase_data > binance_data + threshold:
+            return binance_data, 'Buy Binance', coinbase_data, 'Sell Coinbase'
+        else:
+            return None
+
+    def execute_trade(self, buy_price, sell_price):
+        self.log_transaction(buy_price, sell_price)
+
+    def strat(self, update_interval=2):
+        while True:
+            result = self.arbit(self.symbol, self.threshold)
+            if result:
+                buy_price, buy_action, sell_price, sell_action = result
+                if 'Buy' in buy_action:
+                    self.execute_trade(buy_price, sell_price)
+            time.sleep(update_interval)
+
+symbol = 'ADA/USDT'
+threshold = 0.00005
+
+arbitrage = Arbit(symbol, threshold)
+arbitrage.strat()
+
